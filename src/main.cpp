@@ -29,7 +29,7 @@
 #include "tracker.h"
 #include "detection.h"
 
-bool SHOW_SCREEN = false;
+bool SHOW_SCREEN;
 
 cv::Mat mosaic(const cv::Mat& img1, const cv::Mat& img2)
 {
@@ -103,9 +103,11 @@ std::map<int,std::vector<std::vector<std::string>>> readerGT(const std::string& 
 
 int main(int argc, char** argv)
 {
-	if (argc < 2) 
+	if (argc < 3) 
 	{
-		std::cerr << "Usage: " << argv[0] << " #OBJ" << std::endl;
+		std::cerr << "Usage: " << argv[0] << " <scenario_file> <show_screen>" << std::endl;
+		std::cerr << "  <scenario_file>     scenario file path, see README for format details" << std::endl; 
+		std::cerr << "  <show_screen>       1=show scenario, 0=don't" << std::endl; 
 		return 1;
    }
 	
@@ -120,6 +122,7 @@ int main(int argc, char** argv)
 	cv::Rect rect;
 	std::vector<std::vector<std::string>> curr;
 	std::map<int, std::vector<std::vector<std::string>>> detections = readerGT(std::string(argv[1]));
+	SHOW_SCREEN = atoi(argv[2]);
 
 	for(uint i=0; i < detections.size(); ++i)
 	{
