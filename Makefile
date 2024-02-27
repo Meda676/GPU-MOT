@@ -16,24 +16,30 @@ endif
 
 CUDA = /usr/local/cuda/include
 NVCC = nvcc
-NVCCFLAGS = -std=c++17 -x cu -dc --compiler-options '$(GCC_DEBUGFLAGS)' --compiler-options '-pthread' --compiler-options '-mavx2' --compiler-options '-mfma' --compiler-options '-march=native' --expt-relaxed-constexpr $(NVCC_DEBUGFLAG) $(GENCOD_FLAGS) -I. -I$(CUDA) -I/home/medaglini/Desktop/CUDA/DAT/DAT_CUDA_OKversion/lib/include/eigen3
+NVCCFLAGS = -std=c++17 -x cu -dc \
+	--compiler-options '$(GCC_DEBUGFLAGS)' --compiler-options '-pthread' --compiler-options '-mavx2' --compiler-options '-mfma' --compiler-options '-march=native' --expt-relaxed-constexpr \
+	$(NVCC_DEBUGFLAG) $(GENCOD_FLAGS) -I. -I$(CUDA) -I$(EIGEN3) -I$(OPENCV4)
 SOURCES = $(shell find ./src -name "*.cpp")
 OBJECTS = $(patsubst %.cpp, %.o, $(SOURCES))
 BUILDDIR = .
 LDFLAGS = -L$(PHAST_DIR)/lib -L$(CUDALIB) -lcudart -lcurand -lcublas -lopencv_calib3d -lopencv_core -lopencv_features2d -lopencv_flann -lopencv_highgui -lopencv_imgproc -lopencv_ml -lopencv_objdetect -lopencv_photo -lopencv_stitching -lopencv_superres -lopencv_ts -lopencv_video -lopencv_videostab
-LIBS = -I/home/medaglini/Desktop/CUDA/lib/include/eigen3/ -I/usr/include/opencv2
+GENCODE_FLAGS := -gencode arch=compute_89,code=sm_89 -gencode arch=compute_87,code=sm_87 -gencode arch=compute_86,code=sm_86 -gencode arch=compute_75,code=sm_75 -gencode arch=compute_72,code=sm_72 \
+	-gencode arch=compute_62,code=sm_62 -gencode arch=compute_61,code=sm_61 -gencode arch=compute_53,code=sm_53 
 
-GENCODE_SM75    := -gencode arch=compute_75,code=sm_75
-GENCODE_FLAGS   := $(GENCODE_SM75)
+all: gpu_mot
 
-all: data_tracker
-
-data_tracker: $(OBJECTS) 
-	$(NVCC) $(GENCODE_FLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+gpu_mot: $(OBJECTS) 
+	$(NVCC) $(GENCODE_FLAGS) -o $@ $^ $(LDFLAGS)
 
 %.o: %.cpp
+ifndef EIGEN3
+	$(error 'please define an environment variable EIGEN3 with Eigen3 include path')
+endif
+ifndef OPENCV4
+	$(error 'please define an environment variable OPENCV4 with OpenCV4 include path')
+endif
 	$(NVCC) $(NVCCFLAGS) $< -o $@
 
 .PHONY: clean
 clean:
-	rm -rf src/*.o data_tracker
+	rm -rf src/*.o gpu_mot
