@@ -124,6 +124,8 @@ int main(int argc, char** argv)
 	std::map<int, std::vector<std::vector<std::string>>> detections = readerGT(std::string(argv[1]));
 	SHOW_SCREEN = atoi(argv[2]);
 
+	std::cout << "Starting simulation" << std::endl;
+
 	for(uint i=0; i < detections.size(); ++i)
 	{
 		image = cv::Mat(img_height, img_width, CV_8UC3, cv::Scalar(255, 255, 255));
@@ -154,6 +156,8 @@ int main(int argc, char** argv)
 				cv::putText(image, ss.str(), cv::Point(px,py), cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(0, 255, 0), 1, cv::LINE_AA);
 			}
 		}
+
+		std::cout << i << "] " << dets.size() << " objects" << std::endl;
 		
 		tracker.track(dets);
 
@@ -166,6 +170,8 @@ int main(int argc, char** argv)
 		}
 		dets.clear();
 	}
+
+	std::cout << "Ending simulation" << std::endl;
 
 	return 0;
 }
