@@ -1,3 +1,22 @@
+/*
+ * Copyright (c) 2024, Alessio Medaglini and Biagio Peccerillo
+ *
+ * This file is part of GPU-MOT.
+ *
+ * GPU-MOT is free software: you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License as published by the Free
+ * Software Foundation, either version 3 of the License, or (at your option)
+ * any later version.
+ *
+ * GPU-MOT is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with GPU-MOT. If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include <iostream>
 #include <string>
 #include <chrono>
@@ -88,17 +107,18 @@ int main(int argc, char** argv)
 {
 	if (argc < 2) 
 	{
-		std::cerr << "Usage: " << argv[0] << " <folder>" << std::endl;
-		std::cerr << "    <folder> must be a sub-folder under \"data\"" << std::endl;
+		std::cerr << "Usage: " << argv[0] << " <inputFile> <show_screen>" << std::endl;
+		std::cerr << "    <inputFile> must be a path to the input file" << std::endl;
+		std::cerr << "    <show_screen> with value 1=show scenario, 0=don't show" << std::endl; 
 		return 1;
 	}
 	
-	std::string input_folder = "data/"+std::string(argv[1]);
 	Tracker tracker;
 	std::vector<Detection> dets;
+	bool SHOW_SCREEN = atoi(argv[2]);
 
 	Line curr;
-	std::vector<Line> detections = readerGT(input_folder + "/inputFile.txt");
+	std::vector<Line> detections = readerGT(std::string(argv[1]));
 
   	cv::Mat image;
 	const double millisec = 1000 / 7;
