@@ -1,69 +1,25 @@
-/*
- * Copyright (c) 2024, Alessio Medaglini and Biagio Peccerillo
- *
- * This file is part of GPU-MOT.
- *
- * GPU-MOT is free software: you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option)
- * any later version.
- *
- * GPU-MOT is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with GPU-MOT. If not, see <https://www.gnu.org/licenses/>.
- */
-
+/*** Tracker implementation ***/
 #include "tracker.h"
 #include "kernels.h"
 #include <cassert>
 
-extern __constant__ int dev_offsets[20];
-extern __constant__ int dev_rows[20];
-extern __constant__ int dev_cols[20];
-
-#define CHECK_CUDA_ERROR(val) check((val), #val, __FILE__, __LINE__)
-template <typename T>
-void check(T err, const char* const func, const char* const file,
-           const int line)
+uint32_t next_pow2(uint32_t n)
 {
-    if (err != cudaSuccess)
-    {
-        std::cerr << "CUDA Runtime Error at: " << file << ":" << line
-                  << std::endl;
-        std::cerr << cudaGetErrorString(err) << " " << func << std::endl;
-    }
+    return n == 1u ? 1u : (1u << (32-__builtin_clz(n-1)));
 }
 
-#define CHECK_LAST_CUDA_ERROR() checkLast(__FILE__, __LINE__)
-void checkLast(const char* const file, const int line)
+Tracker::Tracker()
 {
-    cudaError_t err{cudaGetLastError()};
-    if (err != cudaSuccess)
-    {
-        std::cerr << "CUDA Runtime Error at: " << file << ":" << line
-                  << std::endl;
-        std::cerr << cudaGetErrorString(err) << std::endl;
-    }
-}
-
-Tracker::Tracker(const TrackerParam &_param) : param_(_param)
-{
-	trackID_ = 0;
 	init_ = false;
-	startTracking_ = false;
 
 	float dt = 0.1; 
 	Eigen::MatrixXf F = Eigen::MatrixXf(6, 6);
 	F << 1, dt, 0, 0, 0, 0,
-		  0, 1, 0, 0, 0, 0,
-		  0, 0, 1, dt, 0, 0,
+	     0, 1, 0, 0, 0, 0,
+	     0, 0, 1, dt, 0, 0,
 	     0, 0, 0, 1, 0, 0,
-		  0, 0, 0, 0, 1, dt,
-		  0, 0, 0, 0, 0, 1;
+	     0, 0, 0, 0, 1, dt,
+        0, 0, 0, 0, 0, 1;
 	Eigen::MatrixXf H = Eigen::MatrixXf(6, 6);
 	H << 1, 0, 0, 0, 0, 0,
 		  0, 1, 0, 0, 0, 0,  
@@ -81,11 +37,11 @@ Tracker::Tracker(const TrackerParam &_param) : param_(_param)
 		  0, 0, 0, 0, 0, 1;
 	Eigen::MatrixXf G = Eigen::MatrixXf(6, 3);
 	G << std::pow(dt, 2)/2, 0, 0,
-		  dt, 0, 0,
-		  0, std::pow(dt, 2)/2, 0,
-		  0, dt, 0,
-		  0, 0, std::pow(dt, 2)/2,
-		  0, 0, dt;
+	     dt, 0, 0,
+	     0, std::pow(dt, 2)/2, 0,
+	     0, dt, 0,
+	     0, 0, std::pow(dt, 2)/2,
+	     0, 0, dt;
 	Eigen::MatrixXf Q = Eigen::MatrixXf(3, 3);
 	Q << 500, 0, 0,
 		  0, 500, 0,
@@ -132,51 +88,6 @@ Tracker::Tracker(const TrackerParam &_param) : param_(_param)
 	offsets[z_measured_index] = offsets[z_predict_index] + z_predict.cols() * z_predict.rows();
 	offsets[bb_size_index] = offsets[z_measured_index] + 6 * 1;
 	
-	rows[F_index] = F.rows();
-	cols[F_index] = F.cols();
-	rows[H_index] = H.rows();
-	cols[H_index] = H.cols();
-	rows[P_index] = P.rows();
-	cols[P_index] = P.cols();
-	rows[G_index] = G.rows();
-	cols[G_index] = G.cols();
-	rows[Q_index] = Q.rows();
-	cols[Q_index] = Q.cols();
-	rows[R_index] = R.rows();
-	cols[R_index] = R.cols();
-	rows[first_index] = 1;
-	cols[first_index] = 1;
-	rows[life_time_index] = 1;
-	cols[life_time_index] = 1;
-	rows[track_state_index] = 1;
-	cols[track_state_index] = 1;
-	rows[serial_miss_index] = 1;
-	cols[serial_miss_index] = 1;
-	rows[attempt_time_index] = 1;
-	cols[attempt_time_index] = 1;
-	rows[K_index] = K.rows();
-	cols[K_index] = K.cols();
-	rows[S_index] = S.rows();
-	cols[S_index] = S.cols();
-	rows[Sinv_index] = S.rows();
-	cols[Sinv_index] = S.cols(); 
-	rows[P_predict_index] = P.rows();
-	cols[P_predict_index] = P.cols();
-	rows[x_filter_index] = x_filter.rows();
-	cols[x_filter_index] = x_filter.cols();
-	rows[x_predict_index] = x_predict.rows();
-	cols[x_predict_index] = x_predict.cols();
-	rows[z_predict_index] = z_predict.rows();
-	cols[z_predict_index] = z_predict.cols();
-	rows[z_measured_index] = z_measured.rows();
-	cols[z_measured_index] = z_measured.cols();
-	rows[bb_size_index] = bb_size.rows();
-	cols[bb_size_index] = bb_size.cols();
-
-	CHECK_CUDA_ERROR(cudaMemcpyToSymbol(dev_offsets, &offsets, num_matrices*sizeof(int)));
-	CHECK_CUDA_ERROR(cudaMemcpyToSymbol(dev_rows, &rows, num_matrices*sizeof(int)));
-	CHECK_CUDA_ERROR(cudaMemcpyToSymbol(dev_cols, &cols, num_matrices*sizeof(int)));
-
 	numPayloadElem = (
 		F.cols() * F.rows() +
 		H.cols() * H.rows() +
@@ -186,14 +97,14 @@ Tracker::Tracker(const TrackerParam &_param) : param_(_param)
 		R.cols() * R.rows() +
 		K.cols() * K.rows() +
 		S.cols() * S.rows() +
-		S.cols() * S.rows() +
-		P.cols() * P.rows() +  
+		S.cols() * S.rows() + 
+		P.cols() * P.rows() + 
 		x_filter.cols() * x_filter.rows() +
 		x_predict.cols() * x_predict.rows() +
 		z_predict.cols() * z_predict.rows() +
 		z_measured.cols()* z_measured.rows() + 
-		bb_size.cols()* bb_size.rows()	 		
-   ) + 1 	
+		bb_size.cols()* bb_size.rows()	 	
+   ) + 1 
 	  + 4; 
 
 	sizePayload = (numPayloadElem) * sizeof(float);
@@ -209,13 +120,13 @@ Tracker::Tracker(const TrackerParam &_param) : param_(_param)
 	); 
 
 	sizeMeasureElem = 6;
-	sizeMeasure = sizeof(float) * sizeMeasureElem;
-
+	sizeMeasure = sizeof(float) * sizeMeasureElem; 
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_payloads, MAX_ASSOC * sizePayload));
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_zeroPayload, sizeZeroPayload));
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_measNotAssoc, MAX_ASSOC * sizeof(int)));
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_measurements, MAX_ASSOC * sizeMeasure));
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_associations, MAX_ASSOC * sizeof(int)));
+	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_residuals, MAX_ASSOC * sizeof(float)));
 
 	size_t so_far = 0u;
 	float firstInitVal = 1.0;
@@ -246,7 +157,6 @@ Tracker::Tracker(const TrackerParam &_param) : param_(_param)
 	CHECK_CUDA_ERROR(cudaMemcpy(dev_zeroPayload + so_far, &serial_miss, sizeof(float), cudaMemcpyHostToDevice));
 	so_far += 1;
 	CHECK_CUDA_ERROR(cudaMemcpy(dev_zeroPayload + so_far, &attempt_time, sizeof(float), cudaMemcpyHostToDevice));
-
 	so_far = 0u;
 	for (int i=0; i< MAX_ASSOC; ++i)
 	{
@@ -256,6 +166,7 @@ Tracker::Tracker(const TrackerParam &_param) : param_(_param)
 
 	CHECK_CUDA_ERROR(cudaMemset(dev_measNotAssoc, 0, MAX_ASSOC * sizeof(int)));	
 	CHECK_CUDA_ERROR(cudaMemset(dev_associations, -1, MAX_ASSOC * sizeof(int))); 
+	CHECK_CUDA_ERROR(cudaMemset(dev_residuals, 0.0, MAX_ASSOC * sizeof(float)));
 
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_info, MAX_ASSOC * sizeof(int)));
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_S_ptrs, MAX_ASSOC * sizeof(float*)));
@@ -266,7 +177,7 @@ Tracker::Tracker(const TrackerParam &_param) : param_(_param)
 	} 
 	CHECK_CUDA_ERROR(cudaMemcpy(dev_S_ptrs, S_ptrs, MAX_ASSOC*sizeof(float*), cudaMemcpyHostToDevice));
 	CHECK_CUDA_ERROR(cudaMemcpy(dev_Sinv_ptrs, Sinv_ptrs, MAX_ASSOC*sizeof(float*), cudaMemcpyHostToDevice));
-
+	CHECK_CUDA_ERROR(cudaMalloc((void**)&distThreshold_GLOBAL, MAX_ASSOC * sizeof(float)));
 	cublasCreate(&handle);
 }
 
@@ -280,56 +191,64 @@ Tracker::~Tracker()
 	CHECK_CUDA_ERROR(cudaFree(dev_S_ptrs));
 	CHECK_CUDA_ERROR(cudaFree(dev_Sinv_ptrs));
 	CHECK_CUDA_ERROR(cudaFree(dev_info));
+	CHECK_CUDA_ERROR(cudaFree(distThreshold_GLOBAL));
+	CHECK_CUDA_ERROR(cudaFree(dev_residuals));
 	cublasDestroy(handle);
 }
 
 void Tracker::track(const Tracker::Detections &_detections)
 {
 	int numMeasures = _detections.size();
-	std::vector<Vector6f> measure2cuda(100, Vector6f(-1,-1,-1,-1,-1,-1));
+	std::vector<Vector6f> measure2cuda(MAX_ASSOC, Vector6f(-1,-1,-1,-1,-1,-1));
 	for (int d = 0; d < _detections.size(); ++d)
 	{
 		Vector6f detection = Vector6f(_detections[d].x(), _detections[d].vx(), _detections[d].y(),
-												_detections[d].vy(), _detections[d].z(), _detections[d].vz());
-		
+                                              _detections[d].vy(), _detections[d].z(), _detections[d].vz());
 		measure2cuda[d] = detection;
 	}
 	CHECK_CUDA_ERROR(cudaMemcpy(dev_measurements, measure2cuda.data(), measure2cuda.size() * 6 * sizeof(float), cudaMemcpyHostToDevice));
 
 	if (!init_)
 	{
-		createTracks<<<numMeasures,dim3(8,8,1)>>>(dev_zeroPayload, dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem, numMeasures, dev_measNotAssoc);
+		createTracks_kernel(numMeasures, dim3(8,8,1), dev_zeroPayload, dev_payloads, numPayloadElem,
+				    dev_measurements, sizeMeasureElem, numMeasures, dev_measNotAssoc);
+#if __SYNC
 		CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+#endif
 		init_ = true;
 	}
 	else
-	{		
-		predictKFs<<<MAX_ASSOC,dim3(8,8,1)>>>(dev_payloads, numPayloadElem);
-		CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-		
-		associateAll<<<1,dim3(128,8,1)>>>(dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem, numMeasures, dev_associations, dev_measNotAssoc);
+	{
+		predictKFs_kernel(MAX_ASSOC, dim3(6,6,1), dev_payloads, numPayloadElem);
 
-		createTracks<<<numMeasures,dim3(8,8,1)>>>(dev_zeroPayload, dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem, numMeasures, dev_measNotAssoc);
-		CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-		
-		cublasStatus_t status = cublasSmatinvBatched(handle, rows[S_index], dev_S_ptrs, cols[S_index], dev_Sinv_ptrs, cols[Sinv_index], dev_info, MAX_ASSOC);
-		CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-		updateKFs<<<MAX_ASSOC,dim3(8,8,1)>>>(dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem, dev_associations);
+#if MAX_KF <= 100
+    associateAll<<<1,dim3(128,8,1)>>>(dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem, 
+                                        numMeasures, dev_associations, dev_measNotAssoc);
+#else
+    const unsigned int n_pow2 = next_pow2(MAX_ASSOC);
+    calculateDistThreshold<<<MAX_ASSOC,n_pow2>>>(dev_payloads, numPayloadElem, dev_measurements, 
+                            sizeMeasureElem, numMeasures, dev_associations, dev_measNotAssoc, distThreshold_GLOBAL);
+		associateAllBIG2<<<1,dim3(n_pow2,1024 / n_pow2,1)>>>(dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem,
+                                           numMeasures, dev_associations, dev_measNotAssoc, distThreshold_GLOBAL);
+#endif
+
+		createTracks_kernel(numMeasures, dim3(8,8,1), dev_zeroPayload, dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem, numMeasures, dev_measNotAssoc);
+
+		cublasStatus_t status = cublasSmatinvBatched(handle, 6, dev_S_ptrs, 6, dev_Sinv_ptrs, 6, dev_info, MAX_ASSOC);
+		updateKFs_kernel(MAX_ASSOC, dim3(6,6,1), dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem, dev_associations, dev_residuals);
+
 		CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 	}
 }
 
-
-void Tracker::drawTracks(cv::Mat &_img) const
+void Tracker::drawTracks(cv::Mat &_img, int img_width, int img_height) const
 {
 	std::vector<std::vector<int>> bb_line;
 
-	int img_width = 1920;
-	int img_height = 1080;
 	cv::Rect rect;
 	cv::Point p2D;
 	std::stringstream ss;
-	for (int i=0; i<MAX_ASSOC; ++i)
+  for (int i=0; i<MAX_ASSOC; ++i)
 	{
 		float track_state;
 		Eigen::VectorXf bb_size = Eigen::VectorXf::Zero(3);
