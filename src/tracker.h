@@ -21,16 +21,16 @@
 #define _TRACKER_H_
 
 #include <array>
-#include <iostream>
-#include <opencv2/opencv.hpp>
-#include <Eigen/Core>
-#include <numeric>
 #include <chrono>
+#include <iostream>
+#include <numeric>
 #include <thread>
-#include <sched.h>
-#include <pthread.h>
-#include "detection.h"
+
 #include <cublas_v2.h>
+#include <Eigen/Core>
+#include <opencv2/opencv.hpp>
+
+#include "detection.h"
 
 #if MAX_KF > 1000
 #error "Please, choose MAX_KF <= 1000"

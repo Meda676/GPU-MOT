@@ -17,18 +17,20 @@
  * with GPU-MOT. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <iostream>
-#include <string>
 #include <chrono>
-#include <thread>    
 #include <cstdarg>
-#include <map>
-#include <vector>
 #include <fstream>
+#include <iostream>
+#include <map>
+#include <string>
+#include <thread>    
+#include <vector>
+
 #include <experimental/filesystem>
 #include <opencv2/opencv.hpp>	
-#include "tracker.h"
+
 #include "detection.h"
+#include "tracker.h"
 
 bool SHOW_SCREEN;
 

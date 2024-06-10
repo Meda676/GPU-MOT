@@ -23,6 +23,8 @@
 #include <iostream>
 #include <string>
 
+#include <Eigen/Core>
+
 class Detection
 {
 	public:

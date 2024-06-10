@@ -17,8 +17,9 @@
  * with GPU-MOT. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "kernels.h"
 #include <cstdio>
+
+#include "kernels.h"
 
 #define NOT_ASSOCIATED -1
 

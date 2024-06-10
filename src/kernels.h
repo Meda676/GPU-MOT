@@ -20,9 +20,10 @@
 #ifndef _CUDA_KERNEL_H_
 #define _CUDA_KERNEL_H_
 
-#include <cuda_runtime.h>
 #include <cassert>
 #include <iostream>
+
+#include <cuda_runtime.h>
 
 #define CHECK_CUDA_ERROR(val) check((val), #val, __FILE__, __LINE__)
 template <typename T>

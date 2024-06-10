@@ -17,9 +17,10 @@
  * with GPU-MOT. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "tracker.h"
-#include "kernels.h"
 #include <cassert>
+
+#include "kernels.h"
+#include "tracker.h"
 
 uint32_t next_pow2(uint32_t n)
 {
