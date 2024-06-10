@@ -6,6 +6,15 @@ NVCC_DEBUGFLAG = -O3
 GCC_DEBUGFLAGS = -O3
 endif
 
+ifeq (,$(filter clean,$(MAKECMDGOALS)))
+ifndef MAX_KF
+$(error MAX_KF is not set)
+endif
+ifeq ($(shell test $(MAX_KF) -gt 1000; echo $$?),0)
+$(error MAX_KF must be <= 1000)
+endif
+endif
+
 CUDALIB_ = /usr/local/cuda/lib
 CUDALIB = $(CUDALIB_)
 OS_ARCH = $(shell uname -m | sed -e "s/i.86/32/" -e "s/x86_64/64/")
@@ -17,12 +26,12 @@ endif
 CUDA = /usr/local/cuda/include
 NVCC = nvcc
 NVCCFLAGS = -std=c++17 -x cu -dc \
-	--compiler-options '$(GCC_DEBUGFLAGS)' --compiler-options '-pthread' --compiler-options '-mavx2' --compiler-options '-mfma' --compiler-options '-march=native' --expt-relaxed-constexpr \
-	$(NVCC_DEBUGFLAG) $(GENCOD_FLAGS) -I. -I$(CUDA) -I$(EIGEN3) -I$(OPENCV4)
+	-DMAX_KF=$(MAX_KF) --compiler-options '$(GCC_DEBUGFLAGS)' --compiler-options '-pthread' --compiler-options '-mavx2' --compiler-options '-mfma' --compiler-options '-march=native' \
+	--expt-relaxed-constexpr $(NVCC_DEBUGFLAG) $(GENCOD_FLAGS) -I. -I$(CUDA) -I$(EIGEN3) -I$(OPENCV4)
 SOURCES = $(shell find ./src -name "*.cpp")
 OBJECTS = $(patsubst %.cpp, %.o, $(SOURCES))
 BUILDDIR = .
-LDFLAGS = -L$(PHAST_DIR)/lib -L$(CUDALIB) -lcudart -lcurand -lcublas -lopencv_calib3d -lopencv_core -lopencv_features2d -lopencv_flann -lopencv_highgui -lopencv_imgproc -lopencv_ml -lopencv_objdetect -lopencv_photo -lopencv_stitching -lopencv_superres -lopencv_ts -lopencv_video -lopencv_videostab
+LDFLAGS = -L$(PHAST_DIR)/lib -L$(CUDALIB) -lcudart -lcurand -lcublas -lopencv_core -lopencv_highgui -lopencv_imgproc
 GENCODE_FLAGS := -gencode arch=compute_89,code=sm_89 -gencode arch=compute_87,code=sm_87 -gencode arch=compute_86,code=sm_86 -gencode arch=compute_75,code=sm_75 -gencode arch=compute_72,code=sm_72 \
 	-gencode arch=compute_62,code=sm_62 -gencode arch=compute_61,code=sm_61 -gencode arch=compute_53,code=sm_53 
 
