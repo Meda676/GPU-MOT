@@ -60,8 +60,6 @@ __global__ void associateAll(float* payload, int sizePayload, float* measures, i
                                  const int numMeasures, int* associations, int* isAssoc);
 
 __global__ void associateAllBIG(float* payloads, int sizePayload, float* measures, int sizeMeasureElem,
-                                const int numMeasures, int* associations, int* isAssoc, float* curr_dist);
-__global__ void associateAllBIG2(float* payloads, int sizePayload, float* measures, int sizeMeasureElem,
                                 const int numMeasures, int* associations, int* isAssoc, float* distThreshold);
 __global__ void calculateDistThreshold(float* payloads, int sizePayload, float* measures, int sizeMeasureElem,
                               const int numMeasures, int* associations, int* isAssoc, float* distThreshold);

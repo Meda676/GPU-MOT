@@ -247,7 +247,7 @@ void Tracker::track(const Tracker::Detections &_detections)
     const unsigned int n_pow2 = next_pow2(MAX_ASSOC);
     calculateDistThreshold<<<MAX_ASSOC,n_pow2>>>(dev_payloads, numPayloadElem, dev_measurements, 
                             sizeMeasureElem, numMeasures, dev_associations, dev_measNotAssoc, distThreshold_GLOBAL);
-		associateAllBIG2<<<1,dim3(n_pow2,1024 / n_pow2,1)>>>(dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem,
+		associateAllBIG<<<1,dim3(n_pow2,1024 / n_pow2,1)>>>(dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem,
                                            numMeasures, dev_associations, dev_measNotAssoc, distThreshold_GLOBAL);
 #endif
 
