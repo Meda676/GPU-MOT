@@ -498,7 +498,7 @@ __global__ void associateAll(float* payloads, int sizePayload, float* measures,
 }
 
 template <int SIZE>
-__device__ void createTrack(float* zeroPayload, float* payload, float* measure)
+__device__ void createTrack(float* zeroPayload, float* payload, float* measure, int* globalID)
 {
     float* p_F = payload + dev_offset(F_index);
     float* p_H = payload + dev_offset(H_index);
@@ -539,12 +539,14 @@ __device__ void createTrack(float* zeroPayload, float* payload, float* measure)
 
         *(payload + dev_offset(bb_size_index)) = 10; 
         *(payload + dev_offset(bb_size_index)+1) = 12; 
-        *(payload + dev_offset(bb_size_index)+2) = 0; 
+        *(payload + dev_offset(bb_size_index)+2) = 0;
+
+        *(int*)(payload + dev_offset(track_ID_index)) = atomicAdd(globalID, 1);
     }
 }
 
 template <int SIZE>
-__global__ void createTracks(float* zeroPayload, float* payloads, int sizePayload, float* measures, int sizeMeasureElem, const int numMeasures, int* isAssoc)  
+__global__ void createTracks(float* zeroPayload, float* payloads, int sizePayload, float* measures, int sizeMeasureElem, const int numMeasures, int* isAssoc, int* globalID)
 {
     if(isAssoc[blockIdx.x])
         return;
@@ -566,17 +568,17 @@ __global__ void createTracks(float* zeroPayload, float* payloads, int sizePayloa
         __syncthreads();
         if (outcome == invalid_i)
         {
-            createTrack<SIZE>(zeroPayload, payload, meas);
+            createTrack<SIZE>(zeroPayload, payload, meas, globalID);
             break;
         }
     }
 }
 
 void createTracks_kernel(const int gridDim, const dim3 blockDim, float* zeroPayload, float* payloads, int sizePayload,
-		         float* measures, int sizeMeasureElem, const int numMeasures, int* isAssoc)
+		         float* measures, int sizeMeasureElem, const int numMeasures, int* isAssoc, int* globalID)
 {
 	createTracks<6><<<gridDim, blockDim>>>(zeroPayload, payloads, sizePayload, measures, sizeMeasureElem,
-			                       numMeasures, isAssoc);
+			                       numMeasures, isAssoc, globalID);
 }
 
 __device__ void matrixMultTranspose(const float A[6][6], const float T[6][6], float C[6][6], const int rowsA, const int colsA, const int rowT)

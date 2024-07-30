@@ -65,8 +65,9 @@ private:
    int* dev_measNotAssoc;
    int* dev_info;
    float* dev_residuals;
+   int* dev_globalID;
 
-   constexpr static int num_matrices = 20; 
+   constexpr static int num_matrices = 21; 
    int offsets[num_matrices];
    std::size_t sizePayload;
    std::size_t sizeMeasure;

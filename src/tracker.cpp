@@ -97,7 +97,8 @@ Tracker::Tracker()
 	offsets[track_state_index] = offsets[life_time_index] + 1 * 1;
 	offsets[serial_miss_index] = offsets[track_state_index] + 1 * 1;
 	offsets[attempt_time_index] = offsets[serial_miss_index] + 1 * 1;
-	offsets[K_index] = offsets[attempt_time_index]  + 1 * 1;
+	offsets[track_ID_index] = offsets[attempt_time_index] + 1 * 1;
+	offsets[K_index] = offsets[track_ID_index]  + 1 * 1;
 	offsets[S_index] = offsets[K_index] + K.cols() * K.rows();
 	offsets[Sinv_index] = offsets[S_index] + S.cols() * S.rows();
 	offsets[P_predict_index] = offsets[Sinv_index] + S.cols() * S.rows();
@@ -123,8 +124,7 @@ Tracker::Tracker()
 		z_predict.cols() * z_predict.rows() +
 		z_measured.cols()* z_measured.rows() + 
 		bb_size.cols()* bb_size.rows()	 	
-   ) + 1 
-	  + 4; 
+   ) + 6; 
 
 	sizePayload = (numPayloadElem) * sizeof(float);
 
@@ -146,6 +146,10 @@ Tracker::Tracker()
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_measurements, MAX_ASSOC * sizeMeasure));
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_associations, MAX_ASSOC * sizeof(int)));
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_residuals, MAX_ASSOC * sizeof(float)));
+	
+	int firstTrackID = 0;
+	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_globalID, sizeof(int)));
+	CHECK_CUDA_ERROR(cudaMemcpy(dev_globalID, &firstTrackID, sizeof(int), cudaMemcpyHostToDevice));
 
 	size_t so_far = 0u;
 	float firstInitVal = 1.0;
@@ -212,6 +216,7 @@ Tracker::~Tracker()
 	CHECK_CUDA_ERROR(cudaFree(dev_info));
 	CHECK_CUDA_ERROR(cudaFree(distThreshold_GLOBAL));
 	CHECK_CUDA_ERROR(cudaFree(dev_residuals));
+	CHECK_CUDA_ERROR(cudaFree(dev_globalID));
 	cublasDestroy(handle);
 }
 
@@ -230,7 +235,7 @@ void Tracker::track(const Tracker::Detections &_detections)
 	if (!init_)
 	{
 		createTracks_kernel(numMeasures, dim3(8,8,1), dev_zeroPayload, dev_payloads, numPayloadElem,
-				    dev_measurements, sizeMeasureElem, numMeasures, dev_measNotAssoc);
+				    dev_measurements, sizeMeasureElem, numMeasures, dev_measNotAssoc, dev_globalID);
 #if __SYNC
 		CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 #endif
@@ -251,7 +256,8 @@ void Tracker::track(const Tracker::Detections &_detections)
                                            numMeasures, dev_associations, dev_measNotAssoc, distThreshold_GLOBAL);
 #endif
 
-		createTracks_kernel(numMeasures, dim3(8,8,1), dev_zeroPayload, dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem, numMeasures, dev_measNotAssoc);
+		createTracks_kernel(numMeasures, dim3(8,8,1), dev_zeroPayload, dev_payloads, numPayloadElem, 
+					dev_measurements, sizeMeasureElem, numMeasures, dev_measNotAssoc, dev_globalID);
 
 		cublasStatus_t status = cublasSmatinvBatched(handle, 6, dev_S_ptrs, 6, dev_Sinv_ptrs, 6, dev_info, MAX_ASSOC);
 		updateKFs_kernel(MAX_ASSOC, dim3(6,6,1), dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem, dev_associations, dev_residuals);

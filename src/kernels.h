@@ -76,7 +76,7 @@ void updateKFs_kernel(const int gridDim, const dim3 blockDim, float* payloads, i
                       int sizeMeasureElem, int* associations, float* residuals);
 void createTracks_kernel(const int gridDim, const dim3 blockDim, float* zeroPayload, float* payloads,
 		         int sizePayload, float* measures, int sizeMeasureElem, const int numMeasures,
-			 int* isAssoc);
+			     int* isAssoc, int* globalID);
 
 template <int SIZE>
 __device__ void matrixAddition(const float A[SIZE][SIZE], const float B[SIZE][SIZE], float C[SIZE][SIZE])
@@ -149,16 +149,17 @@ constexpr int life_time_index = 7;
 constexpr int track_state_index = 8;
 constexpr int serial_miss_index = 9;
 constexpr int attempt_time_index = 10;
+constexpr int track_ID_index = 11;
 
-constexpr int K_index = 11;
-constexpr int S_index = 12;
-constexpr int Sinv_index = 13;
-constexpr int P_predict_index = 14;
-constexpr int x_filter_index = 15;
-constexpr int x_predict_index = 16;
-constexpr int z_predict_index = 17;
-constexpr int z_measured_index = 18;
-constexpr int bb_size_index = 19;
+constexpr int K_index = 12;
+constexpr int S_index = 13;
+constexpr int Sinv_index = 14;
+constexpr int P_predict_index = 15;
+constexpr int x_filter_index = 16;
+constexpr int x_predict_index = 17;
+constexpr int z_predict_index = 18;
+constexpr int z_measured_index = 19;
+constexpr int bb_size_index = 20;
 
 constexpr int dev_offset(int index)
 {
@@ -174,15 +175,16 @@ constexpr int dev_offset(int index)
            (index == track_state_index) ? 173 :
            (index == serial_miss_index) ? 174 :
            (index == attempt_time_index) ? 175 :
-           (index == K_index) ? 176 :
-           (index == S_index) ? 212 :
-           (index == Sinv_index) ? 248 :
-           (index == P_predict_index) ? 284 :
-           (index == x_filter_index) ? 320 :
-           (index == x_predict_index) ? 326 :
-           (index == z_predict_index) ? 332 :
-           (index == z_measured_index) ? 338 :
-           (index == bb_size_index) ? 344 : -1;
+           (index == track_ID_index) ? 176 :
+           (index == K_index) ? 177 :
+           (index == S_index) ? 213 :
+           (index == Sinv_index) ? 249 :
+           (index == P_predict_index) ? 285 :
+           (index == x_filter_index) ? 321 :
+           (index == x_predict_index) ? 327 :
+           (index == z_predict_index) ? 333 :
+           (index == z_measured_index) ? 339 :
+           (index == bb_size_index) ? 345 : -1;
 }
 
 #endif // _CUDA_KERNEL_H_
