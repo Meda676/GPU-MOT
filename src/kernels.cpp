@@ -176,6 +176,7 @@ __device__ void updateKF(float* payload, float* measure, float* residual)
     __shared__ float res1v[SIZE];
     __shared__ float res2v[SIZE];
     vectorSubtractionConst<SIZE>(z_measured, z_predict, res1v);
+     *residual = res1v[0]*res1v[0] + res1v[2]*res1v[2];
     __syncthreads();
 
     matVecMultConst<SIZE>(K, res1v, res2v);

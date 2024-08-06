@@ -22,22 +22,32 @@
 #include "kernels.h"
 #include "tracker.h"
 
+extern std::chrono::microseconds::rep tracking_time;
+extern std::chrono::microseconds::rep lkf_predict_time;
+extern std::chrono::microseconds::rep lkf_update_time;
+extern std::chrono::microseconds::rep gnn_time;
+extern std::chrono::microseconds::rep trackUpd_time;
+
 uint32_t next_pow2(uint32_t n)
 {
     return n == 1u ? 1u : (1u << (32-__builtin_clz(n-1)));
 }
 
-Tracker::Tracker()
+Tracker::Tracker(const TrackerParam &_param) : param_(_param)
 {
 	init_ = false;
 
-	float dt = 0.1; 
+	float dt = param_.dt; 
+	Eigen::Vector3f target_delta = param_.target_delta;
+	Eigen::MatrixXf R = param_.R;
+	Eigen::MatrixXf Q = param_.Q;
+
 	Eigen::MatrixXf F = Eigen::MatrixXf(6, 6);
-	F << 1, dt, 0, 0, 0, 0,
+	F << 1, 0, 0, 0, 0, 0,
 	     0, 1, 0, 0, 0, 0,
-	     0, 0, 1, dt, 0, 0,
+	     0, 0, 1, 0, 0, 0,
 	     0, 0, 0, 1, 0, 0,
-	     0, 0, 0, 0, 1, dt,
+	     0, 0, 0, 0, 1, 0,
         0, 0, 0, 0, 0, 1;
 	Eigen::MatrixXf H = Eigen::MatrixXf(6, 6);
 	H << 1, 0, 0, 0, 0, 0,
@@ -46,7 +56,7 @@ Tracker::Tracker()
 		  0, 0, 0, 1, 0, 0,
 		  0, 0, 0, 0, 1, 0,
 		  0, 0, 0, 0, 0, 1;
-	Eigen::Vector3f target_delta(10,10,10); 
+	// Eigen::Vector3f target_delta(10,10,10); 
 	Eigen::MatrixXf P = Eigen::MatrixXf(6, 6);
 	P << target_delta(0), 0, 0, 0, 0, 0, 
 		  0, 1, 0, 0, 0, 0, 
@@ -55,23 +65,23 @@ Tracker::Tracker()
 		  0, 0, 0, 0, target_delta(2), 0,
 		  0, 0, 0, 0, 0, 1;
 	Eigen::MatrixXf G = Eigen::MatrixXf(6, 3);
-	G << std::pow(dt, 2)/2, 0, 0,
+	G << dt, 0, 0,
 	     dt, 0, 0,
-	     0, std::pow(dt, 2)/2, 0,
 	     0, dt, 0,
-	     0, 0, std::pow(dt, 2)/2,
+	     0, dt, 0,
+	     0, 0, dt,
 	     0, 0, dt;
-	Eigen::MatrixXf Q = Eigen::MatrixXf(3, 3);
-	Q << 500, 0, 0,
-		  0, 500, 0,
-        0, 0, 500;
-	Eigen::MatrixXf R = Eigen::MatrixXf(6, 6);
-	R << 3, 0, 0, 0, 0, 0,
-		  0, 3, 0, 0, 0, 0,
-		  0, 0, 3, 0, 0, 0,
-		  0, 0, 0, 3, 0, 0,
-		  0, 0, 0, 0, 3, 0,
-		  0, 0, 0, 0, 0, 3;
+	// Eigen::MatrixXf Q = Eigen::MatrixXf(3, 3);
+	// Q << 500, 0, 0,
+	// 	  0, 500, 0,
+   //      0, 0, 500;
+	// Eigen::MatrixXf R = Eigen::MatrixXf(6, 6);
+	// R << 3, 0, 0, 0, 0, 0,
+	// 	  0, 3, 0, 0, 0, 0,
+	// 	  0, 0, 3, 0, 0, 0,
+	// 	  0, 0, 0, 3, 0, 0,
+	// 	  0, 0, 0, 0, 3, 0,
+	// 	  0, 0, 0, 0, 0, 3;
 	Eigen::MatrixXf S = Eigen::MatrixXf(6, 6);
 	S << 1, 0, 0, 0, 0, 0,
 		  0, 1, 0, 0, 0, 0,
@@ -107,7 +117,7 @@ Tracker::Tracker()
 	offsets[z_predict_index] = offsets[x_predict_index] + x_predict.cols() * x_predict.rows();
 	offsets[z_measured_index] = offsets[z_predict_index] + z_predict.cols() * z_predict.rows();
 	offsets[bb_size_index] = offsets[z_measured_index] + 6 * 1;
-	
+
 	numPayloadElem = (
 		F.cols() * F.rows() +
 		H.cols() * H.rows() +
@@ -135,9 +145,8 @@ Tracker::Tracker()
 		G.cols() * G.rows() +
 		Q.cols() * Q.rows() +
 		R.cols() * R.rows() + 
-		5 
+		5
 	); 
-
 	sizeMeasureElem = 6;
 	sizeMeasure = sizeof(float) * sizeMeasureElem; 
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_payloads, MAX_ASSOC * sizePayload));
@@ -146,7 +155,7 @@ Tracker::Tracker()
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_measurements, MAX_ASSOC * sizeMeasure));
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_associations, MAX_ASSOC * sizeof(int)));
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_residuals, MAX_ASSOC * sizeof(float)));
-	
+
 	int firstTrackID = 0;
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_globalID, sizeof(int)));
 	CHECK_CUDA_ERROR(cudaMemcpy(dev_globalID, &firstTrackID, sizeof(int), cudaMemcpyHostToDevice));
@@ -181,6 +190,7 @@ Tracker::Tracker()
 	so_far += 1;
 	CHECK_CUDA_ERROR(cudaMemcpy(dev_zeroPayload + so_far, &attempt_time, sizeof(float), cudaMemcpyHostToDevice));
 	so_far = 0u;
+	
 	for (int i=0; i< MAX_ASSOC; ++i)
 	{
 		CHECK_CUDA_ERROR(cudaMemcpy(dev_payloads + so_far, dev_zeroPayload, sizeZeroPayload, cudaMemcpyDeviceToDevice));
@@ -190,7 +200,6 @@ Tracker::Tracker()
 	CHECK_CUDA_ERROR(cudaMemset(dev_measNotAssoc, 0, MAX_ASSOC * sizeof(int)));	
 	CHECK_CUDA_ERROR(cudaMemset(dev_associations, -1, MAX_ASSOC * sizeof(int))); 
 	CHECK_CUDA_ERROR(cudaMemset(dev_residuals, 0.0, MAX_ASSOC * sizeof(float)));
-
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_info, MAX_ASSOC * sizeof(int)));
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_S_ptrs, MAX_ASSOC * sizeof(float*)));
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&dev_Sinv_ptrs, MAX_ASSOC * sizeof(float*)));
@@ -222,6 +231,7 @@ Tracker::~Tracker()
 
 void Tracker::track(const Tracker::Detections &_detections)
 {
+	RMSE = 0;
 	int numMeasures = _detections.size();
 	std::vector<Vector6f> measure2cuda(MAX_ASSOC, Vector6f(-1,-1,-1,-1,-1,-1));
 	for (int d = 0; d < _detections.size(); ++d)
@@ -243,8 +253,16 @@ void Tracker::track(const Tracker::Detections &_detections)
 	}
 	else
 	{
+		auto start_tracker_time = std::chrono::high_resolution_clock::now(); 
+		auto start_predict_time = std::chrono::steady_clock::now(); 
 		predictKFs_kernel(MAX_ASSOC, dim3(6,6,1), dev_payloads, numPayloadElem);
+#if __SYNC
+		CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+#endif
+		auto end_predict_time = std::chrono::steady_clock::now(); 	
+		lkf_predict_time += std::chrono::duration_cast<std::chrono::microseconds>(end_predict_time - start_predict_time).count();
 
+		auto start_assGNN_time = std::chrono::high_resolution_clock::now(); 
 #if MAX_KF <= 100
     associateAll<<<1,dim3(128,8,1)>>>(dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem, 
                                         numMeasures, dev_associations, dev_measNotAssoc);
@@ -255,14 +273,68 @@ void Tracker::track(const Tracker::Detections &_detections)
 		associateAllBIG<<<1,dim3(n_pow2,1024 / n_pow2,1)>>>(dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem,
                                            numMeasures, dev_associations, dev_measNotAssoc, distThreshold_GLOBAL);
 #endif
+#if __SYNC
+		CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+#endif
+		auto end_assGNN_time = std::chrono::high_resolution_clock::now(); 
+		gnn_time += std::chrono::duration_cast<std::chrono::microseconds>(end_assGNN_time - start_assGNN_time).count();
 
+		auto start_trackUpdate_time = std::chrono::high_resolution_clock::now(); 
 		createTracks_kernel(numMeasures, dim3(8,8,1), dev_zeroPayload, dev_payloads, numPayloadElem, 
 					dev_measurements, sizeMeasureElem, numMeasures, dev_measNotAssoc, dev_globalID);
-
+#if __SYNC
+		CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+#endif	
+		auto end_trackUpdate_time = std::chrono::high_resolution_clock::now();
+		trackUpd_time += std::chrono::duration_cast<std::chrono::microseconds>(end_trackUpdate_time - start_trackUpdate_time).count();
+		
+		auto start_updateGNN_time = std::chrono::high_resolution_clock::now(); 
 		cublasStatus_t status = cublasSmatinvBatched(handle, 6, dev_S_ptrs, 6, dev_Sinv_ptrs, 6, dev_info, MAX_ASSOC);
 		updateKFs_kernel(MAX_ASSOC, dim3(6,6,1), dev_payloads, numPayloadElem, dev_measurements, sizeMeasureElem, dev_associations, dev_residuals);
-
+#if __SYNC
 		CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+#endif		
+		auto end_updateGNN_time = std::chrono::high_resolution_clock::now(); 
+		lkf_update_time += std::chrono::duration_cast<std::chrono::microseconds>(end_updateGNN_time - start_updateGNN_time).count();
+		CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+		auto end_tracker_time = std::chrono::high_resolution_clock::now(); 	
+		tracking_time = std::chrono::duration_cast<std::chrono::microseconds>(end_tracker_time - start_tracker_time).count();
+
+		//compute RMSE
+		std::vector<float> res;
+		for (int i=0; i<MAX_ASSOC; ++i)
+		{
+			float residual;
+			float track_state;
+			float* payload = dev_payloads + i * numPayloadElem;
+			float* track_state_ptr = payload + offsets[track_state_index];
+			float* res_p = dev_residuals + i;
+			cudaMemcpy(&residual, res_p, sizeof(float), cudaMemcpyDeviceToHost);
+			cudaMemcpy(&track_state, track_state_ptr, sizeof(float), cudaMemcpyDeviceToHost);
+			if(track_state == 1.0)
+				res.push_back(residual);
+		}
+		double mean = std::accumulate(res.begin(), res.end(), 0.0) / res.size();
+		std::vector<double> diff(res.size());
+		std::transform(res.begin(), res.end(), diff.begin(), [mean](double x) { return x - mean; });
+		double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+		double stdev = std::sqrt(sq_sum / res.size());
+
+		int count = 0;
+		float squareSum = 0;
+		for(auto el : res)
+		{
+			if (el > mean-3*stdev && el < mean+3*stdev)
+			{	squareSum += el;
+				count++;
+			}
+		}
+
+		if (count!=0)
+		{
+			squareSum = squareSum / count;
+			RMSE = sqrt(squareSum);
+		}
 	}
 }
 
@@ -304,4 +376,34 @@ void Tracker::drawTracks(cv::Mat &_img, int img_width, int img_height) const
 			bb_line.push_back(v);
 		}
 	}
+}
+
+std::vector<std::vector<int>> Tracker::getTracks()
+{
+	std::vector<std::vector<int>> resultData;
+	for (int i=0; i<MAX_ASSOC; ++i)
+	{
+		float track_state;
+		int trackID;
+		Eigen::VectorXf bb_size = Eigen::VectorXf::Zero(3);
+		Eigen::VectorXf z_predict = Eigen::VectorXf::Zero(6);
+		float* payload = dev_payloads + i * numPayloadElem;
+		float* z_predict_ptr = payload + offsets[z_predict_index]; 		
+		float* track_state_ptr = payload + offsets[track_state_index];
+		float* bb_size_ptr = payload + offsets[bb_size_index]; 	
+		int* track_id_ptr = (int*)(payload + offsets[track_ID_index]);
+		cudaMemcpy(z_predict.data(), z_predict_ptr, (z_predict.cols()*z_predict.rows()) * sizeof(float), cudaMemcpyDeviceToHost);
+		cudaMemcpy(&track_state, track_state_ptr, sizeof(float), cudaMemcpyDeviceToHost);
+		cudaMemcpy(bb_size.data(), bb_size_ptr, (bb_size.cols()*bb_size.rows()) * sizeof(float), cudaMemcpyDeviceToHost);
+		cudaMemcpy(&trackID, track_id_ptr, sizeof(int), cudaMemcpyDeviceToHost);	
+		// int idKernel = *(int*)(payload + offsets(track_ID_index));	
+		// std::cout<<"@@@@@@@@@@@@@ "<<idKernel<<"\n";
+		
+		if(track_state == 1.0)
+		{
+			std::vector<int> v = {trackID, (int)z_predict(0), (int)z_predict(2), (int)z_predict(1), (int)z_predict(3)};
+			resultData.push_back(v);
+		}
+	}
+	return resultData;
 }

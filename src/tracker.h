@@ -31,6 +31,7 @@
 #include <opencv2/opencv.hpp>
 
 #include "detection.h"
+#include "tracker_param.h"
 
 #if MAX_KF > 1000
 #error "Please, choose MAX_KF <= 1000"
@@ -43,10 +44,12 @@ protected:
    typedef std::vector<Detection> Detections;
 
 public:
-   Tracker();
+   Tracker(const TrackerParam& _param);
    ~Tracker();
    void drawTracks(cv::Mat &_img, int img_width, int img_height) const;
    void track(const Detections& _detections);
+   std::vector<std::vector<int>> getTracks();
+   float getRMSE() {return RMSE; }
    
 protected:
    constexpr static uint MAX_ASSOC = MAX_KF;
@@ -77,6 +80,9 @@ private:
    float* S_ptrs[MAX_ASSOC];
 	float* Sinv_ptrs[MAX_ASSOC];
    cublasHandle_t handle;
+   float RMSE;
+
+   TrackerParam param_;
 };
 
 #endif
