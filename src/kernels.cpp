@@ -344,7 +344,7 @@ __global__ void associateAllBIG(float* payloads, int sizePayload, float* measure
             *p_serial_miss += 1.0f;
         }
         if (*p_track_state == 0.0f) 
-                *p_attempt_time++;
+                ++(*p_attempt_time);
     
         if(*p_track_state == 0.0f && *p_life_time >= minDetection)
         {
@@ -479,7 +479,7 @@ __global__ void associateAll(float* payloads, int sizePayload, float* measures,
            *p_serial_miss += 1.0f;
         }
         if (*p_track_state == 0.0f)
-                *p_attempt_time++;
+                ++(*p_attempt_time);
     
         if(*p_track_state == 0.0f && *p_life_time >= minDetection)
         {
