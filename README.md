@@ -33,12 +33,14 @@ The ```samples``` folder contains other sample files ready to use.
 
 If you use this repository in your work, please cite:
 ```BibTeX
-@inproceedings{Medaglini2024,
-  title={{}},
-  author={},
-  booktitle={},
-  pages={},
-  year={},
-  doi={},
+@article{Medaglini2024,
+  title={{High-Performance Multi-Object Tracking for Autonomous Driving in Urban Scenarios with Heterogeneous Embedded Boards}},
+  journal={IEEE Access},
+  author={Medaglini, A. and Peccerillo, B. and Bartolini, S.},
+  year={2024},
+  volume={},
+  number={},
+  pages={1-1},
+  doi={10.1109/ACCESS.2024.3484129}
 }
 ```
